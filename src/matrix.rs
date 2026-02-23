@@ -1,4 +1,4 @@
-use crate::vec_math::{VecMath, Vector};
+use crate::vec::{VecMath, Vector};
 
 #[derive(Debug, Clone)]
 pub struct Matrix {

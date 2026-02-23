@@ -1,6 +1,5 @@
 use std::slice::SliceIndex;
 
-use itertools::Itertools;
 #[derive(Debug, Clone)]
 pub struct Vector(pub Vec<f64>);
 impl Vector {
@@ -45,7 +44,6 @@ impl Vector {
         &mut self.0
     }
 }
-
 impl From<Vec<f64>> for Vector {
     fn from(vec: Vec<f64>) -> Self {
         Vector(vec)
@@ -55,6 +53,11 @@ impl From<Vec<f64>> for Vector {
 impl From<&[f64]> for Vector {
     fn from(slice: &[f64]) -> Self {
         Vector(slice.to_vec())
+    }
+}
+impl<'a> Into<&'a [f64]> for &'a Vector {
+    fn into(self) -> &'a [f64] {
+        &self.0
     }
 }
 
