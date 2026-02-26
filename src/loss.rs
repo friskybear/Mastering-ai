@@ -1,3 +1,5 @@
+use crate::vec::Vector;
+
 pub enum Loss {
     MAE,
     MSE,
@@ -18,6 +20,11 @@ impl LossFunction {
             Loss::MSE => mse(predicted, actual),
             Loss::BCE => binary_cross_entropy(predicted, actual),
         }
+    }
+    pub fn batch_loss(loss_fn: &LossFunction, predicted: &[Vector], actual: &[Vector]) -> f64 {
+        assert_eq!(predicted.len(), actual.len(), "batch size mismatch");
+        let n = predicted.len() as f64;
+        predicted.iter().zip(actual).map(|(p, a)| loss_fn.calculate(p.as_slice(), a.as_slice())).sum::<f64>() / n
     }
 }
 
@@ -52,5 +59,6 @@ pub fn binary_cross_entropy(predicted: &[f64], actual: &[f64]) -> f64 {
             y * yhat.ln() + (1.0 - y) * (1.0 - yhat).ln()
         })
         .sum::<f64>()
+        * -1.0
         / predicted.len() as f64
 }

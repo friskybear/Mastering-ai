@@ -6,6 +6,12 @@ impl Vector {
     pub fn new(vec: Vec<f64>) -> Self {
         Vector(vec)
     }
+    pub fn zeros(size: usize) -> Self {
+        Vector(vec![0.0; size])
+    }
+    pub fn ones(size: usize) -> Self {
+        Vector(vec![1.0; size])
+    }
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -60,8 +66,6 @@ impl<'a> Into<&'a [f64]> for &'a Vector {
         &self.0
     }
 }
-
-
 
 impl<'a> IntoIterator for &'a Vector {
     type Item = &'a f64;
