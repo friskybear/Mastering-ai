@@ -3,6 +3,10 @@ name = "Mastering-ai"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "mastering_ai"
+path = "src/lib.rs"
+
 [dependencies]
 rand = "0.10.0"
 serde = "1.0.228"

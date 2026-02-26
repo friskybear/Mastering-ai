@@ -21,6 +21,11 @@ impl Neuron {
         );
         inputs.dot(&self.weights) + self.bias
     }
+
+    pub fn add_inplace(&mut self, other: &Self) {
+        self.weights = self.weights.add(&other.weights);
+        self.bias += other.bias;
+    }
 }
 
 pub struct LayerNeuron {
@@ -41,12 +46,56 @@ impl LayerNeuron {
         let a = self.activation.forward(z);
         (z, a)
     }
+
+    pub fn add_inplace(&mut self, other: &Self) {
+        self.neuron.add_inplace(&other.neuron);
+    }
 }
 
 pub struct LayerGradients {
     pub dweights: Vec<Vector>,
     pub dbiases: Vec<f64>,
     pub dinputs: Vector,
+}
+
+impl LayerGradients {
+    /// Create a zero-filled placeholder; real shape is filled on first `add_inplace`.
+    pub fn zero() -> Self {
+        LayerGradients {
+            dweights: Vec::new(),
+            dbiases: Vec::new(),
+            dinputs: Vector::from(vec![]),
+        }
+    }
+
+    /// Accumulate another set of gradients into self element-wise.
+    pub fn add_inplace(&mut self, other: &LayerGradients) {
+        if self.dweights.is_empty() {
+            // First accumulation — clone shape and values
+            self.dweights = other.dweights.clone();
+            self.dbiases = other.dbiases.clone();
+            self.dinputs = other.dinputs.clone();
+        } else {
+            for (sw, ow) in self.dweights.iter_mut().zip(other.dweights.iter()) {
+                *sw = sw.add(ow);
+            }
+            for (sb, ob) in self.dbiases.iter_mut().zip(other.dbiases.iter()) {
+                *sb += ob;
+            }
+            self.dinputs = self.dinputs.add(&other.dinputs);
+        }
+    }
+
+    /// Scale all gradients by a scalar factor (used for averaging over a batch).
+    pub fn scale_inplace(&mut self, factor: f64) {
+        for w in &mut self.dweights {
+            *w = w.scale(factor);
+        }
+        for b in &mut self.dbiases {
+            *b *= factor;
+        }
+        self.dinputs = self.dinputs.scale(factor);
+    }
 }
 
 pub struct DenseLayer {
@@ -104,6 +153,11 @@ impl DenseLayer {
             dweights,
             dbiases,
             dinputs: Vector::from(dinputs),
+        }
+    }
+    pub fn add_inplace(&mut self, other: &Self) {
+        for (neuron1, neuron2) in self.neurons.iter_mut().zip(other.neurons.iter()) {
+            neuron1.add_inplace(neuron2);
         }
     }
 }

@@ -1,6 +1,25 @@
-use std::f64::EPSILON;
-
 use crate::vec::{VecMath, Vector};
+
+/// Fisher-Yates shuffle of any slice, using rand::random as the source of randomness.
+pub fn shuffle<T>(data: &mut [T]) {
+    let n = data.len();
+    for i in (1..n).rev() {
+        let j = (rand::random::<u64>() as usize) % (i + 1);
+        data.swap(i, j);
+    }
+}
+
+/// Split a slice into two owned Vecs at `split_index`.
+/// Returns (first, second) where first has `split_index` elements.
+pub fn train_test_split<T: Clone>(data: &[T], train_ratio: f64) -> (Vec<T>, Vec<T>) {
+    assert!(
+        (0.0..=1.0).contains(&train_ratio),
+        "train_ratio must be in [0, 1]"
+    );
+    let split = (data.len() as f64 * train_ratio).round() as usize;
+    let split = split.clamp(1, data.len().saturating_sub(1));
+    (data[..split].to_vec(), data[split..].to_vec())
+}
 
 pub fn euclidean_distance(predicted: &[f64], actual: &[f64]) -> f64 {
     assert!(!predicted.is_empty(), "euclidean_distance: empty input");
@@ -36,8 +55,6 @@ pub fn cosine_distance(predicted: &[f64], actual: &[f64]) -> f64 {
     1.0 - (dot_product / (norm_a * norm_b))
 }
 
-
-
 // Numerical derivative of f at point x using centered finite difference
 // h is the step size
 pub fn numerical_derivative(f: impl Fn(f64) -> f64, x: f64, h: f64) -> f64 {
@@ -72,16 +89,10 @@ where
     Vector(gradient)
 }
 
-
 // Gradient descent step for f: R^n -> R at point x
 // Returns a Vector representing the updated point
 
-pub fn gradient_descent_step<F>(
-    f: F,
-    x: &Vector,
-    learning_rate: f64,
-    h: f64,
-) -> Vector
+pub fn gradient_descent_step<F>(f: F, x: &Vector, learning_rate: f64, h: f64) -> Vector
 where
     F: Fn(&[f64]) -> f64,
 {

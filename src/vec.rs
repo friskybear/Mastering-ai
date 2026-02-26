@@ -15,6 +15,41 @@ impl Vector {
     pub fn len(&self) -> usize {
         self.0.len()
     }
+    pub fn rand(size: usize) -> Self {
+        Vector(
+            (0..size)
+                .map(|_| rand::random::<f64>() * 2.0 - 1.0)
+                .collect(),
+        )
+    }
+
+    /// He initialization: N(0, sqrt(2 / fan_in))
+    /// Recommended for ReLU activations.
+    pub fn rand_he(size: usize, fan_in: usize) -> Self {
+        let std = (2.0 / fan_in as f64).sqrt();
+        Vector(
+            (0..size)
+                .map(|_| {
+                    // Box-Muller transform: two uniform samples -> one normal sample
+                    let u1: f64 = rand::random::<f64>().max(f64::EPSILON);
+                    let u2: f64 = rand::random::<f64>();
+                    let normal = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+                    normal * std
+                })
+                .collect(),
+        )
+    }
+
+    /// Xavier / Glorot initialization: U(-sqrt(6 / (fan_in + fan_out)), +sqrt(...))
+    /// Recommended for Tanh and Sigmoid activations.
+    pub fn rand_xavier(size: usize, fan_in: usize, fan_out: usize) -> Self {
+        let limit = (6.0 / (fan_in + fan_out) as f64).sqrt();
+        Vector(
+            (0..size)
+                .map(|_| rand::random::<f64>() * 2.0 * limit - limit)
+                .collect(),
+        )
+    }
     pub fn get<I>(&self, index: I) -> Option<&I::Output>
     where
         I: SliceIndex<[f64]>,
@@ -89,6 +124,65 @@ impl Vector {
 impl AsRef<[f64]> for Vector {
     fn as_ref(&self) -> &[f64] {
         &self.0
+    }
+}
+
+/// Min-max normalizes a dataset of vectors in-place, per feature.
+/// Each feature i is scaled to [0, 1] using the min and max observed across all samples.
+/// Returns the (mins, maxs) per feature so the same transform can be applied to new data.
+pub fn normalize_dataset(data: &mut [Vector]) -> (Vector, Vector) {
+    assert!(!data.is_empty(), "normalize_dataset: empty dataset");
+    let n_features = data[0].len();
+
+    let mut mins = vec![f64::INFINITY; n_features];
+    let mut maxs = vec![f64::NEG_INFINITY; n_features];
+
+    // Pass 1: find min/max per feature
+    for sample in data.iter() {
+        assert_eq!(
+            sample.len(),
+            n_features,
+            "normalize_dataset: inconsistent feature count"
+        );
+        for (i, &v) in sample.iter().enumerate() {
+            if v < mins[i] {
+                mins[i] = v;
+            }
+            if v > maxs[i] {
+                maxs[i] = v;
+            }
+        }
+    }
+
+    // Pass 2: scale each feature to [0, 1]
+    for sample in data.iter_mut() {
+        for i in 0..n_features {
+            let range = maxs[i] - mins[i];
+            sample.0[i] = if range < f64::EPSILON {
+                0.0 // constant feature — set to 0
+            } else {
+                (sample.0[i] - mins[i]) / range
+            };
+        }
+    }
+
+    (Vector::from(mins), Vector::from(maxs))
+}
+
+/// Apply a previously computed min-max normalization to a single vector.
+pub fn normalize_sample(sample: &mut Vector, mins: &Vector, maxs: &Vector) {
+    assert_eq!(
+        sample.len(),
+        mins.len(),
+        "normalize_sample: dimension mismatch"
+    );
+    for i in 0..sample.len() {
+        let range = maxs.0[i] - mins.0[i];
+        sample.0[i] = if range < f64::EPSILON {
+            0.0
+        } else {
+            (sample.0[i] - mins.0[i]) / range
+        };
     }
 }
 

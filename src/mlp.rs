@@ -1,6 +1,8 @@
 use crate::{
+    loss::LossFunction,
     neuron::{DenseLayer, LayerGradients},
-    vec::{VecMath, Vector},
+    optimizer::{BatchGradients, Optimizer},
+    vec::Vector,
 };
 
 pub struct MLP {
@@ -72,29 +74,44 @@ impl MLP {
         gradients
     }
 
-    pub fn sgd_step(&mut self, inputs: &Vector, target: &Vector, learning_rate: f64) {
-        // --- 1. Forward pass ---
-        let (outputs, activations, zs) = self.forward_with_cache(inputs);
+    pub fn sgd_step(
+        &mut self,
+        input: &Vector,
+        target: &Vector,
+        loss_fn: &LossFunction,
+        optimizer: &mut impl Optimizer,
+    ) {
+        self.train_batch(&[(input.clone(), target.clone())], loss_fn, optimizer);
+    }
 
-        // --- 2. Compute loss gradient w.r.t output ---
-        // general
-        let dloss_da = outputs.sub(target).scale(2.0 / outputs.len() as f64);
+    pub fn train_batch(
+        &mut self,
+        batch: &[(Vector, Vector)],
+        loss_fn: &LossFunction,
+        optimizer: &mut impl Optimizer,
+    ) {
+        assert!(!batch.is_empty(), "empty batch");
 
-        // --- 3. Backward pass ---
-        let gradients = self.backward(&activations, &zs, &dloss_da);
+        let mut batch_grads = BatchGradients::zero_like(self.layers.len());
 
-        // --- 4. Update weights & biases ---
-        for (layer, grad) in self.layers.iter_mut().zip(gradients.iter()) {
-            for (neuron, (dw, db)) in layer
-                .neurons
-                .iter_mut()
-                .zip(grad.dweights.iter().zip(grad.dbiases.iter()))
-            {
-                // w = w - η * dw
-                neuron.neuron.weights = neuron.neuron.weights.sub(&dw.scale(learning_rate));
-                // b = b - η * db
-                neuron.neuron.bias -= learning_rate * db;
-            }
+        for (input, target) in batch {
+            // --- forward ---
+            let (output, activations, zs) = self.forward_with_cache(input);
+
+            // --- loss gradient ---
+            let dloss_da = loss_fn.gradient(&output, target);
+
+            // --- backward ---
+            let grads = self.backward(&activations, &zs, &dloss_da);
+
+            // --- accumulate ---
+            batch_grads.add(&grads);
         }
+
+        // average gradients across batch
+        batch_grads.scale(1.0 / batch.len() as f64);
+
+        // update parameters
+        optimizer.step(&mut self.layers, &batch_grads.layers);
     }
 }
